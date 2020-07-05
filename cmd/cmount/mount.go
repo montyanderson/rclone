@@ -26,13 +26,6 @@ import (
 	"github.com/rclone/rclone/vfs/vfsflags"
 )
 
-const (
-	// SetCapReaddirPlus informs the host that the hosted file system has the readdir-plus
-	// capability [Windows only]. A file system that has the readdir-plus capability can send
-	// full stat information during Readdir, thus avoiding extraneous Getattr calls.
-	usingReaddirPlus = runtime.GOOS == "windows"
-)
-
 func init() {
 	name := "cmount"
 	if runtime.GOOS == "windows" {
@@ -152,9 +145,7 @@ func mount(f fs.Fs, mountpoint string) (*vfs.VFS, <-chan error, func() error, er
 	// Create underlying FS
 	fsys := NewFS(f)
 	host := fuse.NewFileSystemHost(fsys)
-	if usingReaddirPlus {
-		host.SetCapReaddirPlus(true)
-	}
+	host.SetCapReaddirPlus(true) // only works on Windows
 	host.SetCapCaseInsensitive(f.Features().CaseInsensitive)
 
 	// Create options
