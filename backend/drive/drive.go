@@ -237,8 +237,12 @@ in with the ID of the root folder.
 			Hide:     fs.OptionHideConfigurator,
 			Advanced: true,
 		}, {
-			Name:     "team_drive",
-			Help:     "ID of the Team Drive",
+			Name: "team_drive",
+			Help: `ID of the Team Drive
+
+Note that you can't use this with root_folder_id - if you want to
+start a team_drive listing not at the root then set the directory ID
+that you want to start from here, not in root_folder_id`,
 			Hide:     fs.OptionHideConfigurator,
 			Advanced: true,
 		}, {
@@ -969,7 +973,9 @@ func configTeamDrive(ctx context.Context, opt *Options, m configmap.Mapper, name
 		driveID = config.Choose("Enter a Team Drive ID", driveIDs, driveNames, true)
 	}
 	m.Set("team_drive", driveID)
+	m.Set("root_folder_id", "")
 	opt.TeamDriveID = driveID
+	opt.RootFolderID = ""
 	return nil
 }
 
@@ -1130,6 +1136,18 @@ func NewFs(name, path string, m configmap.Mapper) (fs.Fs, error) {
 	// breaks their workflow. There isn't an easy way around that.
 	if opt.RootFolderID != "" && opt.RootFolderID != "appDataFolder" && opt.Impersonate != "" {
 		fs.Logf(f, "Ignoring cached root_folder_id when using --drive-impersonate")
+		opt.RootFolderID = ""
+	}
+
+	// If using team_drive warn about root_folder_id if set and
+	// unset it.
+	//
+	// This is because rclone v1.51 and v1.52 cached root_folder_id when
+	// using team drives which they shouldn't have done. It is possible
+	// someone is using team drives and root_folder_id in which case this
+	// breaks their workflow. There isn't an easy way around that.
+	if opt.RootFolderID != "" && opt.TeamDriveID != "" {
+		fs.Logf(f, "Ignoring cached root_folder_id when using team_drive")
 		opt.RootFolderID = ""
 	}
 
