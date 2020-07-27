@@ -162,6 +162,7 @@ var (
 	_ fs.Fs          = &Fs{}
 	_ fs.ListRer     = &Fs{}
 	_ fs.PutStreamer = &Fs{}
+	_ fs.Mover       = &Fs{}
 )
 
 // NewFs creates a filesystem backed by Tardigrade.
@@ -665,6 +666,54 @@ func (f *Fs) Rmdir(ctx context.Context, relative string) (err error) {
 	}
 
 	return nil
+}
+
+// Move copies the file and deletes the original
+func (f *Fs) Move(ctx context.Context, src fs.Object, remote string) (fs.Object, error) {
+	_, ok := src.(*Object)
+
+	if !ok {
+		fs.Debugf(src, "Can't move - not same remote type")
+		return nil, fs.ErrorCantMove
+	}
+
+	srcBucketName, srcBucketPath := f.absolute(src.Remote())
+
+	download, err := f.project.DownloadObject(ctx, srcBucketName, srcBucketPath, nil)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "DownloadObject failed")
+	}
+
+	dstBucketName, dstBucketPath := f.absolute(remote)
+
+	upload, err := f.project.UploadObject(ctx, dstBucketName, dstBucketPath, nil)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "UploadObject failed")
+	}
+
+	_, err = io.Copy(upload, download)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Copy failed")
+	}
+
+	download.Close()
+
+	_, err = f.project.DeleteObject(ctx, srcBucketName, srcBucketPath)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "DeleteObject failed")
+	}
+
+	dstObj, err := f.NewObject(ctx, remote)
+
+	if err != nil {
+		return nil, errors.Wrap(err, "NewObject failed")
+	}
+
+	return dstObj, nil
 }
 
 // newPrefix returns a new prefix for listing conforming to the libuplink
